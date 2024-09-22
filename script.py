@@ -7,7 +7,7 @@ import re
 import csv
 import os
 import glob
-import difflib  # Import difflib for finding closest matches
+import difflib  
 
 # preprocessing
 def preprocess_image(image_path):
@@ -98,7 +98,7 @@ def clean_ocr_output(ocr_text):
     replacements = {
         "IIVs:2": "IVs:", "IVs: 2": "IVs:", "IVs:r": "IVs:", "IVrs": "IVs:", "IV:": "IVs:",
         "Ws:": "IVs:", "Vs:": "IVs:", "Ws": "IVs:", "Wsr": "IVs:", "Wee": "IVs:", "Wer": "IVs:", "WES": "IVs:",
-        "EIVs:": "EVs:", "IVs:2": "IVs:"
+        "EIVs:": "EVs:", "IVs:2": "IVs:" # i hate this
     }
 
     # Replace specific common misreads
@@ -194,7 +194,7 @@ def process_pokemon_data(ocr_text, moves_file='moves.txt', abilities_file='abili
     }
 
 # save data to CSV
-# Save data to CSV without headers and with blank ID field
+
 def save_data_to_csv(data_list, output_csv='pokemon_data.csv'):
     with open(output_csv, mode='w', newline='') as file:
         writer = csv.writer(file)
@@ -284,5 +284,5 @@ def run_pokemon_analysis(image_path):
     return final_data
 
 if __name__ == "__main__":
-    folder_path = 'Pokemon'  
+    folder_path = 'Pokemon/'  
     process_folder(folder_path)
