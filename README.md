@@ -40,18 +40,32 @@ pip install opencv-python numpy pillow pytesseract unidecode
 
 This project uses the Tesseract OCR engine for text extraction from images. You need to install Tesseract separately based on your operating system:
 
-- **Windows**: Download and install the latest version from [UB Mannheim Tesseract](https://github.com/UB-Mannheim/tesseract/wiki).
-- **macOS**: Use Homebrew to install Tesseract by running the following command:
+**Windows**: Download and install the latest version from [UB Mannheim Tesseract](https://github.com/UB-Mannheim/tesseract/wiki).
 
-```bash
-brew install tesseract
-```
-  
-- **Linux**: Install Tesseract using your package manager. For example, on Ubuntu, run:
+### Step 4: Add Tesseract to Your PATH
 
-```bash
-sudo apt-get install tesseract-ocr
-```
+After installing Tesseract, you'll need to add it to your system's PATH to make it accessible from anywhere in your terminal.
+
+1. **Find the installation directory**:  
+   By default, Tesseract installs to `C:\Program Files\Tesseract-OCR`. Verify this by navigating to this folder in File Explorer.
+
+2. **Copy the path**:  
+   Copy the full path to the `Tesseract-OCR` folder. For example, `C:\Program Files\Tesseract-OCR`.
+
+3. **Open Environment Variables**:  
+   - Right-click on **This PC** or **My Computer** and select **Properties**.
+   - Click on **Advanced system settings** on the left.
+   - Click on **Environment Variables**.
+
+4. **Add to PATH**:  
+   - In the Environment Variables window, under **System variables**, scroll down and select the **Path** variable, then click **Edit**.
+   - Click **New**, and paste the path you copied earlier (`C:\Program Files\Tesseract-OCR`).
+   - Click **OK** to close all dialog boxes.
+
+5. **Verify Tesseract is working**:  
+   Open a new command prompt (close any existing ones), and type:
+   ```bash
+   tesseract -v
 
 ## Usage
 
