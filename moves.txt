@@ -298,7 +298,6 @@ Feather Dance
 Teeter Dance
 Blaze Kick
 Mud Sport
-Ice
 Needle Arm
 Slack Off
 Hyper Voice
@@ -357,7 +356,7 @@ Gravity
 Miracle Eye
 Wake-Up Slap
 Hammer Arm
-Gyro
+Gyro Ball
 Healing Wish
 Brine
 Natural Gift
@@ -557,3 +556,7 @@ Icicle Crash
 V-create
 Fusion Flare
 Fusion Bolt
+Energy Ball
+Softboiled
+Uturn
+WilloWisp

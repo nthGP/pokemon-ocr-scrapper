@@ -95,18 +95,21 @@ def load_list_from_file(file_path):
 
 # Clean and standardize OCR output
 def clean_ocr_output(ocr_text):
+    # Fix common misreads and clean up text
     replacements = {
-        "IIVs:2": "IVs:", "IVs: 2": "IVs:", "IVs:r": "IVs:", "IVrs": "IVs:", "IV:": "IVs:",
-        "Ws:": "IVs:", "Vs:": "IVs:", "Ws": "IVs:", "Wsr": "IVs:", "Wee": "IVs:", "Wer": "IVs:", "WES": "IVs:",
-        "EIVs:": "EVs:", "IVs:2": "IVs:" # i hate this
+        "EIVs:": "EVs:", "Evs:": "EVs:", "Eve": "EVs:",
+        "BV": "EVs:", "Evs": "EVs:", "EVs:r": "EVs:"
     }
 
     # Replace specific common misreads
     for old, new in replacements.items():
         ocr_text = ocr_text.replace(old, new)
 
-    # clean up remaining unwanted characters near "IVs:"
+    # clean up remaining unwanted characters between "IVs:" and the actual values
     ocr_text = re.sub(r'IVs?:?\s*[^\d\s/]', 'IVs: ', ocr_text)
+
+    # Handle special cases where "IVs:" might be followed by incorrect characters
+    ocr_text = re.sub(r'IVs: \d?\s*', 'IVs: ', ocr_text)
 
     # Replace accented characters using unidecode
     ocr_text = unidecode.unidecode(ocr_text)
@@ -120,7 +123,69 @@ def clean_ocr_output(ocr_text):
     ocr_text = re.sub(r'[^\w\s/:]', '', ocr_text)
     ocr_text = re.sub(r'\s+', ' ', ocr_text)
 
+    print("Cleaned OCR Output:")
+    print(ocr_text)
     return ocr_text
+
+# Extract moves (duh)
+def extract_moves(cleaned_text, possible_moves):
+    # Ensure multi-word moves are prioritized
+    sorted_moves = sorted(possible_moves, key=len, reverse=True)  # Sort longest first
+
+    detected_moves = []
+    words = cleaned_text.split()  # Split text into words
+
+    for i in range(len(words)):
+        # Check for multi-word moves first
+        for move in sorted_moves:
+            move_words = move.split()
+            if words[i:i + len(move_words)] == move_words:
+                detected_moves.append(move)
+                break  # Stop checking once we find a valid move
+
+    # Fuzzy matching for potential misreads
+    cleaned_moves = []
+    for move in detected_moves:
+        closest_match = difflib.get_close_matches(move, possible_moves, n=1, cutoff=0.8)
+        if closest_match:
+            cleaned_moves.append(closest_match[0])
+
+    return cleaned_moves if cleaned_moves else ["Not Found"]
+
+import re
+import difflib
+
+# Extract ability (wow)
+def extract_ability(cleaned_text, possible_abilities):
+    # Sort abilities by length to prioritize multi-word abilities
+    sorted_abilities = sorted(possible_abilities, key=len, reverse=True)
+
+    # Clean up text: remove special characters, underscores, etc.
+    cleaned_text = re.sub(r'[^a-zA-Z\s]', '', cleaned_text)  # Keep only letters & spaces
+
+    detected_ability = "Not Found"
+
+    # **Check for exact matches first**
+    for ability in sorted_abilities:
+        if ability.lower() in cleaned_text.lower():
+            detected_ability = ability
+            break
+
+    # **Check for concatenated words (e.g., "SheerForce" → "Sheer Force")**
+    if detected_ability == "Not Found":
+        for ability in sorted_abilities:
+            condensed_ability = ability.replace(" ", "").lower()
+            if condensed_ability in cleaned_text.replace(" ", "").lower():
+                detected_ability = ability
+                break
+
+    # **Fuzzy match to fix OCR misreads (e.g., "lron Barbs" → "Iron Barbs")**  **NOT WORKING VERY WELL**
+    if detected_ability == "Not Found":
+        closest_match = difflib.get_close_matches(cleaned_text, possible_abilities, n=1, cutoff=0.7)
+        if closest_match:
+            detected_ability = closest_match[0]
+
+    return detected_ability
 
 # Process the cleaned OCR text and extract relevant Pokémon information
 def process_pokemon_data(ocr_text, moves_file='moves.txt', abilities_file='abilities.txt', pokemon_names_file='pokemon_names.txt'):
@@ -143,33 +208,63 @@ def process_pokemon_data(ocr_text, moves_file='moves.txt', abilities_file='abili
     else:
         level, pokemon_name = "Unknown", "Unknown"
 
-    # IV extraction
-    ivs_match = re.search(r'IVs?:?\s*(\d{1,2}/\d{1,2}/\d{1,2}/\d{1,2}/\d{1,2}/\d{1,2})', cleaned_text)
-    ivs = ivs_match.group(1) if ivs_match else "Not Found"
-    iv_values = ivs.split('/') if ivs != "Not Found" else ["Not Found"] * 6
+    # Extract all six-number sequences in the OCR text
+    six_value_matches = re.findall(r'(\d{1,3}/\d{1,3}/\d{1,3}/\d{1,3}/\d{1,3}/\d{1,3})', cleaned_text)
 
-    # EV extraction
-    evs_pattern = r'EVs?:?\s*(\d{1,3}/\d{1,3}/\d{1,3}/\d{1,3}/\d{1,3}/\d{1,3})'
-    evs_match = re.search(evs_pattern, cleaned_text)
-    evs = evs_match.group(1) if evs_match else "Not Found"
-    ev_values = evs.split('/') if evs != "Not Found" else ["Not Found"] * 6
+    ivs = "Not Found"
+    evs = "Not Found"
+    iv_values = ["Not Found"] * 6
+    ev_values = ["Not Found"] * 6
 
-    # Extract nature
-    valid_natures = [
+    if six_value_matches:
+        # Assume last six-number sequence is EVs (Stats -> IVs -> EVs order)
+        for possible_values in reversed(six_value_matches):  # Iterate backwards
+            values_list = list(map(int, possible_values.split('/')))
+            values_sum = sum(values_list)
+
+            if values_sum <= 510:  # Likely EVs (EVs cap at 510)
+                evs = possible_values
+                ev_values = values_list
+                break  # Stop after finding EVs
+
+        # Assume IVs are the second-last valid six-number sequence
+        for possible_values in reversed(six_value_matches):
+            values_list = list(map(int, possible_values.split('/')))
+            
+            if values_sum > 510:  # Stats are typically much higher than 510
+                continue  # Skip stats
+            
+            if possible_values != evs:  # Ensure it's different from detected EVs
+                ivs = possible_values
+                iv_values = values_list
+                break  # Stop after finding IVs
+
+    # List of valid natures in English
+    valid_natures_english = [
         "Adamant", "Brave", "Lonely", "Naughty", "Bold", "Relaxed", "Impish", "Lax", "Timid", 
         "Hasty", "Jolly", "Naive", "Modest", "Mild", "Quiet", "Rash", "Calm", "Gentle", "Sassy", 
         "Careful", "Quirky"
     ]
-    nature_match = re.search(r'Nature:?\s*(' + '|'.join(valid_natures) + ')', cleaned_text, re.IGNORECASE)
-    nature = nature_match.group(1) if nature_match else "Not Found"
 
-    # Extract ability from the list
-    ability_match = re.search(r'\b(?:{})\b'.format("|".join(possible_abilities)), cleaned_text, re.IGNORECASE)
-    ability = ability_match.group(0).capitalize() if ability_match else "Not Found"
+    # Extract Nature by looking directly for valid nature names in cleaned text
+    def extract_valid_nature(text, valid_natures):
+        for nature in valid_natures:
+            # Match natures exactly, ignoring case and allowing for possible concatenation
+            match = re.search(rf'\b({nature})(?=\b|[A-Z])', text, re.IGNORECASE)
+            if match:
+                return nature.capitalize()
+        return "Not Found"
+
+    # Extract nature
+    found_nature = extract_valid_nature(cleaned_text, valid_natures_english)
+
+    # This implementation for extracting nature causes a very specific bug, if a Pokemon has the Brave Bird move it will always display the nature as Brave
+
+    # Extract ability
+    ability = extract_ability(cleaned_text, possible_abilities)
 
     # Extract moves
-    moves = re.findall(r'\b(?:{})\b'.format("|".join(possible_moves)), cleaned_text, re.IGNORECASE)
-    cleaned_moves = list(set([move.capitalize() for move in moves])) if moves else ["Not Found"]
+    moves = extract_moves(cleaned_text, possible_moves)
 
     return {
         "pokemon_name": pokemon_name,
@@ -188,10 +283,11 @@ def process_pokemon_data(ocr_text, moves_file='moves.txt', abilities_file='abili
         "ev_sp_atk": ev_values[3],
         "ev_sp_def": ev_values[4],
         "ev_spd": ev_values[5],
-        "nature": nature,
+        "nature": found_nature,
         "ability": ability, 
-        "moves": cleaned_moves
+        "moves": moves
     }
+
 
 # save data to CSV
 
@@ -243,7 +339,6 @@ def save_data_to_csv(data_list, output_csv='pokemon_data.csv'):
                 "",  # Date Rented (Not gathered by the script)
                 ""  # Queue (Not gathered by the script)
             ])
-
 
 # process multiple images in a folder
 def process_folder(folder_path, output_csv='pokemon_data.csv'):
